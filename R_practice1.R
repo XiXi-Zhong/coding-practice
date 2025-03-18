@@ -29,6 +29,45 @@ die+1:4
 ##[1] 2 4 4 6 6 8
 ##[1] 2 4 6 8 6 8
 ##警告信息:In die + 1:4 : 长的对象长度不是短的对象长度的整倍数
+#%*%执行行内乘法，%o%执行外乘法
+die%*%die
+##die%*%die,内积 Inner Product
+##[,1]
+##[1,]   91
+die%o%die
+##外积（Outer Product）生成一个矩阵
+##die%o%die
+#[,1] [,2] [,3] [,4] [,5] [,6]
+#[1,]    1    2    3    4    5    6
+#[2,]    2    4    6    8   10   12
+#[3,]    3    6    9   12   15   18
+#[4,]    4    8   12   16   20   24
+#[5,]    5   10   15   20   25   30
+#[6,]    6   12   18   24   30   36
+
+round(mean(die))
+##从最内层开始计算，知道最外层，#round函数四舍五入
+##[1] 4
+sample(die,size=2)
+#sample 默认不放回抽样，放回抽样才能保证实验相互独立
+sample(x=die,size=2,replace=TRUE)
+#创建独立随机样本，想要知道总点数
+dice <- sample(x=die,size=2,replace=TRUE)
+sum(dice)
+dice
+##反复调用dice,结果都相同，已经把值赋予dice，不会再随机变换
+#编写自定义函数
+#自定义函数效果：每次调用，都会返回两个骰子点数之和
+#给自定义函数命名roll
+roll <- function(){
+  die <- 1:6
+  dice <- sample(die,size = 2,replace =TRUE)
+  sum(dice)}
+roll()
+roll
+
+#练习绘制直方图,用ggplot函数
+x3 <- c(0,1,1,2,2,2,3,3,4)
 
 
 
