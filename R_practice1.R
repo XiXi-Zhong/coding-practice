@@ -66,15 +66,49 @@ roll <- function(){
 roll()
 roll
 
-#练习绘制直方图,用ggplot函数
+#练习绘制直方图,用ggplot函数(histogram)
 x3 <- c(0,1,1,2,2,2,3,3,4)
+## 将数据转换为数据框
+df <- data.frame(x3)
+#因为在ggplot函数里面，所有数据输入都要以 数据框（data.frame）
+library(ggplot2)
+ggplot(df,aes(x=x3))+geom_histogram(
+  binwidth = 1,fill = "lightblue",
+  color = "black", boundary = -0.5)
+#在 ggplot2 中，aes() 用于定义数据映射，
+#即将数据变量映射到图形属性（如 x 轴、y 轴、颜色、形状等）
+library(ggplot2)
+ggplot(df,aes(y=x3))+geom_histogram(
+  binwidth = 1,fill = "lightblue",
+  color = "black", boundary = -0.5)
+#如果是y=x3，图像就是反的
 
+#replicate函数重复执行你想要运行某代码次数
+replicate(4,1+1)
+##[1] 2 2 2 2
+#运行10次，连续两次骰子和
+replicate(10,roll())
+#将1000次运行结果画成直方图
+rolls <- replicate(1000,roll())
+df_1 <- data.frame(rolls)
+ggplot(df_1,aes(x=rolls))+geom_histogram(binwidth = 0.5,fill = "lightblue",
+                color = "black", boundary = -0.5)
 
+#结果是一个中间概率分布最大，两边概率分布下降的一个直方图
+#证明这个随机过程是均匀的。无偏差的
 
-
-
-
-
-
+?sample#查询sample函数用法
+#改变骰子结果权重，构建新的点数和直方图
+roll_1 <- function(){
+  die <- 1:6
+  dice_1 <- sample(die,size=2,replace=TRUE,prob = c(1/8,1/8,1/8,1/8,1/8,3/8))
+  sum(dice_1)
+}
+roll_1()
+rolls_1 <- replicate(1000,roll_1())
+df_2 <- data.frame(rolls_1)
+library(ggplot2)
+ggplot(df_2,aes(x=rolls_1))+geom_histogram(binwidth = 0.5,fill = "blue",color = "black", boundary = -0.5)
+#改变权重出现大点数概率更高
 
 
