@@ -1,0 +1,44 @@
+---
+title: "survival analysis task 1"
+author: "Zhong Yaxi"
+date: "2025-05-20"
+output: html_document
+---
+#Produce the R-output for the model for breast cancer data using the code given in the lecture note. Then, comment on it.
+
+
+```{r}
+#input data
+sdata <- read.csv("C:/Users/yaxiz/Desktop/Semester 2/Survival statistic/breastcancer.csv",header = TRUE)
+str(sdata)
+head(sdata)
+# 创建生存对象
+library(survival)
+surv_object <- Surv(time=sdata$time,event=sdata$status)#这里的surv function 首字母大写
+
+#拟合Kaplan-Meier模型未分组版
+km_fit <- survfit(surv_object~1) #~1表示不按任何变量分组
+summary(km_fit)
+plot(km_fit,xlab = "Time", ylab = "Survival Probability",main = "Kaplan-Meier Survival Curve")
+
+#考虑分组情况下拟合Kaplan-Meier model
+km_fit_group <- survfit(surv_object~sdata$stain)
+summary(km_fit_group)
+
+#log-rank 检验
+survdiff(Surv(time, status) ~ stain, data = sdata)
+
+#cox回归分析
+cox_fit <- coxph(surv_object ~ stain, data = sdata)
+summary(cox_fit)
+
+
+
+
+
+```
+
+
+
+
+
