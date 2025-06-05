@@ -1,0 +1,102 @@
+---
+title: "Robust test 2"
+author: "Zhong"
+date: "2025-06-05"
+output:
+  word_document: default
+  html_document: default
+---
+#This is a data set consisting of measurements of water salinity (i.e., its salt concentration) and river discharge taken in North Carolina's Pamlico Sound, recording some bi-weekly averages in March, April, and May from 1972 to 1977. This data is available in the robustbase package, data(salinity)
+
+#(a):Model this relationship using:OLS and GMestimator KS2014setting ,Tabulate the estimated coefficients and their standard errors for both fits.
+
+#1.load the data
+```{r}
+## Load the robustbase package
+library(robustbase)
+#input data
+data("salinity")
+#view structure of data 
+head(salinity)
+str(salinity)
+#step 2 using ols fit model
+#OLS fit
+ols_fit <- lm(Y~X1+X2+X3,data = salinity)
+#summary OLS fit
+summary(ols_fit)
+#step 3 using  GMestimator KS2014setting
+gm_fit <- lmrob(Y~X1+X2+X3,data = salinity,setting="KS2014")
+#"KS2014"是一套预设的鲁棒控制参数，来自 Koller & Stahel (2014)，适用于很多实际问题，鲁棒性好，自动配置好一整套鲁棒回归参数
+summary(gm_fit)
+#step 4 tabulate coefficients and standard errrors
+
+results <- data.frame(
+  ols_coef = coef(ols_fit),#data.frame 里面是=，不是<-，注意区别！！！
+  gm_coef = coef(gm_fit),
+  ols_se = summary(ols_fit)$coefficients[,2],
+  gm_se = summary(gm_fit)$coefficients[,2]#这里不要加逗号！！！
+)
+print(results)
+
+
+```
+
+#residual polts of  two models 
+```{r}
+# 1. 设置一个图形窗口，画两张图并排
+par(mfrow = c(1, 2))
+
+# 2. OLS 残差图
+plot(ols_fit$fitted.values, resid(ols_fit),#plot散点图，横轴拟合值，纵轴残差
+     main = "OLS Residuals",#图表名称
+     xlab = "Fitted values",#X轴名称
+     ylab = "Residuals",#Y轴名称
+     col = "red", pch = 19)#点的形状是实心圆（代码 19 是一个点样式）
+abline(h = 0, lty = 2)#abline在图上画一条直线，h=0表示y = 0 的水平线，ity=2表示这条线是虚线（线型类型 2）
+
+# 3. GM 残差图
+plot(gm_fit$fitted.values, resid(gm_fit),
+     main = "GM (KS2014) Residuals",
+     xlab = "Fitted values",
+     ylab = "Residuals",
+     col = "blue", pch = 19)
+abline(h = 0, lty = 2)
+
+```
+
+
+
+#（b）Identify outliers and classify observations into vertical, good and bad leverage points.
+
+```{r}
+#step 1 计算残差和杠杆值，cook distance
+library(car)
+df <- salinity
+df$restudent <- rstudent(ols_fit)#残差（即实际值与拟合值的差）非常大（标准化残差 > 2 或 < -2）
+
+df$hat <- hatvalues(ols_fit)# 杠杆值 hᵢ
+df$cook <- cooks.distance(ols_fit)# Cook's D，用于衡量单个点对拟合结果的影响力
+
+#step 2 设定判断标准
+n <- nrow(salinity)       # 总观测数
+p <- length(coef(ols_fit))    # 参数数（包括截距）
+lev.thresh <- 2 * p / n   # 杠杆值阈值
+inf.thresh <- 4 / n       # Cook's D 阈值
+
+#step 3 找出异常值
+outliers <- subset(df,abs(restudent)>2)#找出外部学生化残差的绝对值 > 2 的点，这些是可能的离群点。
+
+leverage_1 <-subset(df,hat>lev.thresh)#找出杠杆值大于阈值的点，即高杠杆点
+influential_1 <- subset(df,cook>inf.thresh)#找出Cook's 距离大于阈值的点，这些是可能会显著改变拟合结果的有影响力观测值。
+
+#step 4 可视化表格化这些极端点
+
+print(outliers)
+print(leverage_1)
+print(influential_1)
+
+```
+
+#(c)(i) Compare parameter estimates, standard errors, and the set of flagged outliers.
+#(ii) Explain why the GM weight function reduces the influence of the bad leverage observations you identified in part (b) and hence shifts the fitted surface.
+
