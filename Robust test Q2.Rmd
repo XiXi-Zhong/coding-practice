@@ -167,4 +167,4 @@ print(cook_2)
 #Answer:Huber and Tukey procedures assign different weights to the same extreme observations because they use different weighting functions.
 #Huber's method applies a soft threshold—it downweights large residuals but never assigns zero weight, so extreme observations still retain some influence.
 #Tukey's method uses a hard threshold—observations with residuals beyond a certain cutoff receive zero weight, effectively excluding them from the fit.
-#As a result, Tukey is more aggressive in treating outliers, and may classify observations as outliers that Huber does not
+#As a result, Tukey is more aggressive in treating outliers, and may classify observations as outliers that Huber does not.
