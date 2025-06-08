@@ -1,0 +1,170 @@
+---
+title: "Robust test Q2"
+author: "Zhong"
+date: "2025-06-06"
+output:
+  word_document: default
+  html_document: default
+---
+#The Coleman data set  contains information on 20 schools from the Mid-Atlantic and New England states, drawn from a population study. This data set consists of measurements on six different variables, one of which will be treated as response. They can be described as follows:
+
+#X1: staff salaries per pupil
+#X2: percent of white-collar fathers
+#X3: socio-economic status composite (deviation means for family size, family intactness, father's education, mother's education, and home items)
+#X4: mean teacher's verbal test score
+#X5: mean mother's educational level (one unit is equal to two school years)
+#Y: verbal mean test score (all sixth graders)
+#This data is available in the robustbase package: data(coleman).
+
+#(a) Estimate (β0,β1,β2,β3,β4) by each of the following methods and report the fitted coefficients with their estimated standard errors:
+
+#Ordinary Least Squares (OLS)
+#Huber M-estimator with tuning constant c=1.345
+#Tukey bisquare M-estimator with tuning constant c=4.685
+
+#(Hint: first attach the relevant packages with library(robustbase) to load the data and library(MASS) for rlm().)
+
+# step 1 input data
+```{r}
+
+library(robustbase)#先加载这个数据包才能读取数据
+data("coleman") #记得加“”
+str(coleman)
+head(coleman)
+colnames(coleman)[1:5] <- c("X1","X2","X3","X4","X5")#重新命名变量，记得加""！
+
+```
+
+#step 2 三种回归模型
+#Ordinary Least Squares (OLS)
+#Huber M-estimator with tuning constant c=1.345
+#Tukey bisquare M-estimator with tuning constant c=4.685
+
+```{r}
+library("MASS")
+#OLS
+ols_model <- lm(Y~X1+X2+X3+X4+X5,coleman)
+summary(ols_model)
+#Huber ME
+huber_model <- rlm(Y~X1+X2+X3+X4+X5,data=coleman,
+                   psi=psi.huber,
+                   k=1.345)
+summary (huber_model)
+
+#Tukey ME
+tukey_model <- rlm(Y~X1+X2+X3+X4+X5,data=coleman,
+                    psi=psi.bisquare,
+                    k=4.658)
+
+summary(tukey_model)
+
+```
+# step 3 整理数据生成表格
+```{r}
+#提取系数和标准误差
+ols_coe<-summary(ols_model)$coefficients
+huber_coe<-summary(huber_model)$coefficients
+tukey_coe<-summary(tukey_model)$coefficients
+#构造表格
+coe_names <- rownames(ols_coe)#rownames() 提取的是 每一行所代表的对象名
+#构造结果表格
+results_2 <- data.frame(
+  Term=coe_names,
+  OLS_estimate=round(ols_coe[,"Estimate"],4),#round保留4位小数
+  OLS_se=round(ols_coe[,"Std. Error"],4),
+  
+  Huber_estimate=round(huber_coe[,"Value"],4),#没有列名叫 "Estimate"，而是叫 "Value"
+  Huber_se=round(huber_coe[,"Std. Error"],4),
+  
+  Tukey_estimate=round(tukey_coe[,"Value"],4),
+  Tukey_se=round(tukey_coe[,"Std. Error"],4)
+)
+View(results_2)
+
+```
+
+#(b) Produce scatterplot of standardised residuals versus fitted values. Attach a horizontal reference at ∣r∣=±2.5.
+
+#OLS散点图
+```{r}
+par(mfrow = c(1, 3))
+#标准化残差
+ols_residuals <- rstandard(ols_model)
+#fitted value
+ols_fitted <- fitted(ols_model)
+#plot
+plot(ols_fitted,ols_residuals,
+     main="(OLS)",
+     xlab="fitted values",
+    ylab="standardised residuals",
+     pch=19,col="darkblue")
+#添加辅助线
+abline(h=abs(2.5),col="red",lty=2)#2是虚线
+abline(h = 0, col = "black", lty = 1)#1是实线
+
+#Huber 标准差VS拟合值散点图
+
+# Huber 标准化残差
+huber_resid <- residuals(huber_model)
+huber_scale <- huber_model$s
+huber_rstd <- huber_resid / huber_scale
+
+huber_fitted <- fitted(huber_model)
+
+plot(huber_fitted, huber_rstd,
+     main = "(Huber)",
+     xlab = "Fitted Values",
+     ylab = "Standardized Residuals",
+     pch = 19, col = "darkgreen")
+
+abline(h = 2.5, col = "red", lty = 2)
+abline(h = -2.5, col = "red", lty = 2)
+abline(h = 0, col = "black", lty = 1)
+
+# 3 Tukey标准差VS拟合值散点图
+# Tukey 标准化残差
+tukey_resid <- residuals(tukey_model)
+tukey_scale <- tukey_model$s
+tukey_rstd <- tukey_resid / tukey_scale
+
+tukey_fitted <- fitted(tukey_model)
+
+plot(tukey_fitted, tukey_rstd,
+     main = "(Tukey)",
+     xlab = "Fitted Values",
+     ylab = "Standardized Residuals",
+     pch = 19, col = "purple")
+
+abline(h = 2.5, col = "red", lty = 2)
+abline(h = -2.5, col = "red", lty = 2)
+abline(h = 0, col = "black", lty = 1)
+
+```
+
+#(c) Identify the observation(s) flagged as outliers under each of the estimators.
+```{r}
+#outliers
+which(abs(ols_residuals) > 2.5)
+outlier_2 <- rstudent(ols_model)
+#leverage
+leve_2 <- hatvalues(ols_model)
+n_2 <- nrow(coleman)
+p_2 <- length(coef(ols_model))
+lev.thresh <- 2 * p_2 / n_2   # 杠杆值阈值
+inf.thresh <- 4 / n_2       # Cook's D 阈值
+
+#cook distance
+cook_dis <- cooks.distance(ols_model)
+outliers_2 <-subset(coleman,abs(rstudent(ols_model))>2.5) 
+leverage_2 <- subset(coleman,leve_2>lev.thresh)
+cook_2 <- subset(coleman,cook_dis>inf.thresh)
+print(outliers_2)
+print(leverage_2)
+print(cook_2)
+
+```
+#d) Explain briefly why the Huber and Tukey procedures assign different weights to the same extreme observation(s).
+#Answer:Huber and Tukey procedures assign different weights to the same extreme observations because they use different weighting functions.
+#Huber's method applies a soft threshold—it downweights large residuals but never assigns zero weight, so extreme observations still retain some influence.
+#Tukey's method uses a hard threshold—observations with residuals beyond a certain cutoff receive zero weight, effectively excluding them from the fit.
+#As a result, Tukey is more aggressive in treating outliers, and may classify observations as outliers that Huber does not
