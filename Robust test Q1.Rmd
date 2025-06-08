@@ -5,6 +5,7 @@ date: "2025-06-05"
 output:
   word_document: default
   html_document: default
+  pdf_document: default
 ---
 #This is a data set consisting of measurements of water salinity (i.e., its salt concentration) and river discharge taken in North Carolina's Pamlico Sound, recording some bi-weekly averages in March, April, and May from 1972 to 1977. This data is available in the robustbase package, data(salinity)
 
@@ -98,5 +99,22 @@ print(influential_1)
 ```
 
 #(c)(i) Compare parameter estimates, standard errors, and the set of flagged outliers.
+## 汇总异常值编号
+```{r}
+print("Coefficient Estimates and Standard Errors:")
+coefs <- summary(ols_fit)$coefficients
+print(coefs)
+```
+
+
 #(ii) Explain why the GM weight function reduces the influence of the bad leverage observations you identified in part (b) and hence shifts the fitted surface.
 
+#Answer:It down-weights large residuals If an observation doesn’t fit the model (i.e., it lies far from the fitted surface), it gets a small weight.
+
+#It further down-weights high-leverage points with large residuals
+#A point far in X-space and far off the surface is seen as highly suspect. GM estimators give it very little influence in estimating the regression surface.
+
+#This reduces their "pulling" power
+#In OLS, all points are treated equally (full weight = 1). In GM, bad leverage points might get a weight close to 0. As a result, they don’t distort the regression fit.
+
+#The GM weight function reduces the influence of bad leverage points by assigning them small weights. Bad leverage observations have both high leverage (extreme X values) and large residuals. In GM estimation, such points receive low weights because their residuals are large, and sometimes because their leverage is high. As a result, they contribute very little to the estimation of the regression surface. This prevents them from pulling the fitted surface toward themselves, shifting the surface toward the main data cluster and improving robustness.
