@@ -1,0 +1,55 @@
+---
+title: "survival assignment"
+author: "Zhong"
+date: "2025-06-09"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r}
+#Set seed based on group number (Group 17 → seed = 101 + 2×17 = 135)
+group_number <- 17  # Replace this with your actual group number
+n <- 101 + (group_number * 2)
+set.seed(n)
+library(coxed)
+library(survival)
+library(survminer)
+# Generate simulated data
+simdata <- sim.survdata(N=n, T=100, num.data.frames=1)$data
+str(simdata)
+head(simdata)
+# Full model
+cox_model <- coxph(Surv(y, failed) ~ X1 + X2 + X3, data = simdata)
+summary(cox_model)
+# Reduced model using stepwise selection
+reduced_model <- step(cox_model)
+summary(reduced_model)
+# Likelihood ratio test
+anova(reduced_model, cox_model, test = "LRT")
+
+      
+```
+
+```{r}
+library(survival)
+library(survminer)
+#Kaplan-Meier survival curve  plot
+# 1. 构建两个 survfit 对象
+fit_full <- survfit(cox_model)        # full model
+fit_reduced <- survfit(reduced_model) # reduced model
+
+# 2. survival curve  plot
+ggsurvplot_list(
+  list("Full model" = fit_full, "Reduced model" = fit_reduced),
+  data = simdata,
+  combine = TRUE,
+  legend.title = "Model",
+  legend.labs = c("Full", "Reduced"),
+  palette = c("red", "blue"),
+  surv.scale = "percent",
+  ggtheme = theme_minimal()
+)
+
+```
+
