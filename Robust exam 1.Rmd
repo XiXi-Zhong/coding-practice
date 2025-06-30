@@ -1,0 +1,111 @@
+---
+title: "Robust exam 1"
+author: "Zhong"
+date: "2025-07-01"
+output:
+  word_document: default
+  html_document: default
+---
+#compute mean ,median, trimmed mean
+```{r}
+data_1 <-c(110,115,120,122,125,130,135,140,145,300) 
+mean_1 <- mean(data_1)
+median_1 <- median(data_1)
+trim_mean <- mean(data_1,trim=0.1)
+mean_1
+median_1
+trim_mean
+#算SD，MAD
+sd(data_1)
+mad(data_1, constant = 1)#默认 mad(x) 会乘上 1.4826 这个常数用于近似标准差，这里我们加上 constant = 1 来还原最原始 MAD。
+mad(data_1)#这个是
+
+```
+#The entry ‘300’ is incorrect due to a typo error. Replace this with the correct value ‘150’.
+#Now add a new observation z to the corrected dataset. For 𝑧=200,400
+#i. Compute the mean and median of the modified data set.
+
+```{r}
+data_2 <- c(110,115,120,122,125,130,135,140,145,150,200)
+mean(data_2)
+median(data_2)
+data_3 <- c(110,115,120,122,125,130,135,140,145,150,400)
+mean(data_3)
+median(data_3)
+```
+##ii. Plot the sensitivity curves for the mean and the median. Comment on the resulting plots.
+```{r}
+# 原始数据（修正后）
+data_base <- c(110, 115, 120, 122, 125, 130, 135, 140, 145, 150)
+
+# 加入 z = 200
+z <- 200
+data_with_z <- c(data_base, z)
+
+# 原始估计量
+base_mean <- mean(data_base)
+base_median <- median(data_base)
+base_mean
+base_median
+# 加入后的估计量
+new_mean<- mean(data_with_z)
+new_median <- median(data_with_z)
+new_mean
+new_median
+# 计算 sensitivity
+sc_mean <- new_mean - base_mean
+sc_median <- new_median - base_median
+
+
+
+```
+#线图
+
+```{r}
+# 原始数据（修正300为150）
+data_base <- c(110, 115, 120, 122, 125, 130, 135, 140, 145, 150)
+
+# 构造 z 的连续变化序列
+z_vals <- seq(100, 500, by = 5)
+
+# 预先计算 base 的 mean 和 median
+base_mean <- mean(data_base)
+base_median <- median(data_base)
+
+# 创建空向量保存 sensitivity 值
+sc_mean <- numeric(length(z_vals))
+sc_median <- numeric(length(z_vals))
+
+# 遍历每个 z，加入后计算 estimator 的变化量
+for (i in seq_along(z_vals)) {
+  z <- z_vals[i]
+  new_data <- c(data_base, z)
+  sc_mean[i] <- mean(new_data) - base_mean
+  sc_median[i] <- median(new_data) - base_median
+}
+
+# 绘图
+plot(z_vals, sc_mean, type = "l", col = "blue", lwd = 2,
+     ylim = range(c(sc_mean, sc_median)),
+     xlab = "z (new data point)", ylab = "Change in Estimator",
+     main = "Sensitivity Curve for Mean and Median")
+lines(z_vals, sc_median, col = "red", lwd = 2)
+abline(h = 0, lty = 2, col = "gray")
+legend("topleft", legend = c("Mean", "Median"), col = c("blue", "red"), lwd = 2)
+grid()
+
+```
+#Comment the plot
+#The sensitivity curve of the mean increases linearly with z, indicating that the mean is affected by any new value, even a single extreme outlier. In contrast, the sensitivity curve of the median is flat for most values of z, and only changes when z is extreme enough to shift the middle order statistics. This shows that the median is much more robust than the mean.
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,325 @@
+---
+title: "property analysis"
+author: "Zhong"
+date: "2025-06-30"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+#Step 1 clean data
+
+```{r}
+# 1. Load required packages
+library(tidyverse)
+library(stringr)
+
+# 2. Read raw data
+df <- read_csv("condo_prices.csv", show_col_types = FALSE)
+
+# 3. Clean price field
+df <- df %>%
+  mutate(price = as.numeric(str_replace_all(as.character(price), "[^0-9.]", "")))
+
+# 4. Extract state from address
+df <- df %>%
+  mutate(state = str_trim(word(Address, -1, sep = fixed(","))),
+         state = replace_na(state, "Unknown"))
+
+# 5. Convert size, bedroom, bathroom, and completion year to numeric
+df <- df %>%
+  mutate(
+    size_sqft         = as.numeric(str_extract(str_remove_all(`Property Size`, ","), "\\d+")),
+    Bedroom           = as.numeric(str_replace_all(as.character(Bedroom), "[^0-9.]", "")),
+    Bathroom          = as.numeric(str_replace_all(as.character(Bathroom), "[^0-9.]", "")),
+    `Completion Year` = as.numeric(str_replace_all(as.character(`Completion Year`), "[^0-9]", ""))
+  )
+
+# 6. Add missing indicators and impute by group median
+num_cols <- c("Bedroom", "Bathroom", "size_sqft", "Completion Year")
+for (col in num_cols) {
+  df[[paste0(col, "_missing")]] <- as.integer(is.na(df[[col]]))
+}
+df <- df %>%
+  group_by(state, `Property Type`) %>%
+  mutate(across(all_of(num_cols),
+                ~ ifelse(is.na(.x), median(.x, na.rm = TRUE), .x))) %>%
+  ungroup()
+
+# 7. Create age variable (capped between 0 and 100)
+df <- df %>%
+  mutate(age = 2025 - `Completion Year`,
+         age = ifelse(age < 0 | age > 100, NA, age))
+
+# 8. Process parking lot data
+df <- df %>%
+  mutate(
+    parking_missing = as.integer(is.na(`Parking Lot`)),
+    parking_lot     = as.integer(replace_na(as.numeric(`Parking Lot`), 0))
+  )
+
+# 9. Generate amenity count variable
+split_len <- function(x) ifelse(
+  is.na(x) | x == "",
+  0L,
+  lengths(str_split(x, "[,\\n;]+"))
+)
+df <- df %>%
+  mutate(
+    amenity_count      = split_len(Facilities),
+    facilities_missing = as.integer(is.na(Facilities))
+  )
+
+# 10. Generate transport variables
+df <- df %>%
+  mutate(
+    bus_stop_count  = split_len(`Bus Stop`),
+    railway_count   = split_len(str_c(`Nearby Railway Station`, `Railway Station`, sep = ",")),
+    transport_index = bus_stop_count + railway_count,
+    transport_missing =
+      as.integer(is.na(`Bus Stop`) &
+                 is.na(`Nearby Railway Station`) &
+                 is.na(`Railway Station`))
+  )
+
+# 11. Handle missing categorical variables
+cat_cols <- c("Tenure Type", "Property Type", "state")
+for (col in cat_cols) {
+  miss_col <- paste0(str_replace_all(col, " ", "_"), "_missing")
+  df[[miss_col]] <- as.integer(is.na(df[[col]]))
+  df[[col]]      <- replace_na(df[[col]], "Unknown")
+}
+
+# 12. Encode floor level range
+df <- df %>%
+  mutate(
+    floor_level_encoded = case_when(
+      str_detect(str_to_lower(`Floor Range`), "low")    ~ 0,
+      str_detect(str_to_lower(`Floor Range`), "middle") ~ 1,
+      str_detect(str_to_lower(`Floor Range`), "high")   ~ 2,
+      TRUE                                              ~ NA_real_
+    )
+  )
+
+# 13. Clean number of floors and total units
+df <- df %>%
+  mutate(
+    `# of Floors` = as.numeric(na_if(`# of Floors`, "-")),
+    `Total Units` = as.numeric(na_if(`Total Units`, "-"))
+  )
+
+# 14. Remove redundant columns
+drop_cols <- c(
+  "description", "Facilities", "Bus Stop", "Mall", "Nearby School", "Nearby Mall",
+  "Hospital", "School", "Park", "Railway Station", "Nearby Railway Station",
+  "Firm Type", "Firm Number", "REN Number", "Ad List", "Parking Lot",
+  "Property Size", "Address", "Building Name", "Developer"
+)
+df <- df %>% select(-any_of(drop_cols))
+
+# 15. Drop rows with missing price
+df <- df %>% filter(!is.na(price))
+
+
+
+```
+
+#step 2 EDA
+```{r}
+
+# 1. Load required packages and read cleaned data
+library(tidyverse)
+library(corrplot)
+df <- read_csv("condo_prices_cleaned.csv", show_col_types = FALSE)
+
+# 2. Plot price distribution (histogram + density)
+p1 <- ggplot(df, aes(x = price)) + 
+  geom_histogram(binwidth = 50000, fill = "steelblue") + 
+  labs(title = "Price Distribution", x = "Price (RM)", y = "Count") +
+  theme_minimal(base_size = 13)
+
+p2 <- ggplot(df, aes(x = price)) + 
+  geom_density(fill = "skyblue", alpha = 0.6) + 
+  labs(title = "Price Density Plot", x = "Price (RM)", y = "Density") +
+  theme_minimal(base_size = 13)
+
+# 3. Scatter plot of size vs. price (with regression line)
+p3 <- ggplot(df, aes(x = size_sqft, y = price)) + 
+  geom_point(alpha = 0.4, color = "darkorange") +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  labs(title = "Price vs Size", x = "Size (sqft)", y = "Price (RM)") +
+  theme_minimal(base_size = 13)
+
+# 4. Boxplot of top 10 states by median price
+top10_states <- df %>%
+  group_by(state) %>%
+  summarise(median_price = median(price, na.rm = TRUE)) %>%
+  arrange(desc(median_price)) %>%
+  slice(1:10) %>%
+  pull(state)
+
+p4 <- ggplot(df %>% filter(state %in% top10_states),
+       aes(x = reorder(state, price, median), y = price)) +
+  geom_boxplot(fill = "lightblue", outlier.size = 0.8) +
+  coord_flip() +
+  labs(title = "Price Distribution",
+       x = "State", y = "Price (RM)") +
+  theme_minimal(base_size = 13)
+
+# 5. Correlation heatmap of numeric variables
+cor_matrix <- cor(df %>%
+  select(price, Bedroom, Bathroom, size_sqft, `Completion Year`, age, `# of Floors`, `Total Units`),
+  use = "complete.obs")
+p5 <- corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.9)
+
+# 6. Top 10 states by average price per sqft
+df <- df %>%
+  mutate(price_per_sqft = price / size_sqft)
+
+top_pps <- df %>%
+  group_by(state) %>%
+  summarise(mean_pps = mean(price_per_sqft, na.rm = TRUE)) %>%
+  filter(mean_pps < quantile(mean_pps, 0.99)) %>%
+  arrange(desc(mean_pps)) %>%
+  slice(1:10)
+
+p6 <- ggplot(top_pps, aes(x = reorder(state, mean_pps), y = mean_pps)) +
+  geom_col(fill = "royalblue") +
+  coord_flip() +
+  labs(title = "Top 10 States by Price per Sqft", x = "State", y = "Price per Sqft (RM)") +
+  theme_minimal(base_size = 13)
+#combine plots
+library(cowplot)
+plot_grid(p1, p2, labels = c("A", "B"), ncol = 2)
+plot_grid(p4, p6, labels = c("A", "B"), ncol = 2)
+```
+#XGBoost
+```{r}
+# 1. Load modeling packages
+library(data.table)
+library(caret)
+library(xgboost)
+library(Matrix)
+
+# 2. Read data and split into training/testing sets
+df <- fread("condo_prices_cleaned.csv")
+set.seed(2025)
+train_idx <- createDataPartition(df$price, p = 0.8, list = FALSE)
+train_df <- df[train_idx]
+test_df <- df[-train_idx]
+
+# 3. Remove constant columns
+all_feats <- setdiff(names(df), "price")
+is_const <- sapply(train_df[, all_feats, with = FALSE], function(x) length(unique(x)) <= 1)
+feat_final <- setdiff(all_feats, names(is_const)[is_const])
+
+# 4. One-hot encoding
+dv <- dummyVars(~ ., data = train_df[, feat_final, with = FALSE])
+train_m <- predict(dv, newdata = train_df[, feat_final, with = FALSE])
+test_m <- predict(dv, newdata = test_df[, feat_final, with = FALSE])
+
+# 5. Align test dummy columns with training
+miss <- setdiff(colnames(train_m), colnames(test_m))
+if (length(miss) > 0) {
+  zero_mat <- matrix(0, nrow(test_m), length(miss), dimnames = list(NULL, miss))
+  test_m <- cbind(test_m, zero_mat)
+}
+test_m <- test_m[, colnames(train_m), drop = FALSE]
+
+# 6. Create DMatrix objects
+dtrain <- xgb.DMatrix(data = train_m, label = train_df$price)
+dtest <- xgb.DMatrix(data = test_m, label = test_df$price)
+
+# 7. Set parameters and apply cross-validation with early stopping
+params <- list(
+  objective = "reg:squarederror",
+  eval_metric = "rmse",
+  eta = 0.1,
+  max_depth = 6,
+  subsample = 0.8,
+  colsample_bytree = 0.8
+)
+cv_res <- xgb.cv(params, dtrain, nrounds = 1000, nfold = 5,
+                 early_stopping_rounds = 20, verbose = 1)
+best_n <- cv_res$best_iteration
+
+# 8. Train XGBoost model
+model <- xgb.train(params, dtrain, nrounds = best_n)
+
+# 9. Evaluate model on test set
+preds <- predict(model, dtest)
+rmse <- sqrt(mean((preds - test_df$price)^2))
+cat("XGBoost Test RMSE =", round(rmse, 2), "\n")
+
+# 10. Extract and plot top 10 features
+imp <- xgb.importance(feature_names = colnames(train_m), model = model)
+xgb.plot.importance(imp[1:10, ])
+
+```
+#OLS
+```{r}
+# 11. Fit OLS model using top 8 features from XGBoost
+top_feats <- imp$Feature[1:8]
+train_sub <- as.data.frame(train_m)[, top_feats]
+train_sub$price <- train_df$price
+
+test_sub <- as.data.frame(test_m)[, top_feats]
+test_sub$price <- test_df$price
+
+lm_mod <- lm(price ~ ., data = train_sub)
+summary(lm_mod)
+
+# 12. OLS model evaluation
+pred <- predict(lm_mod, newdata = test_sub)
+cat("OLS Test RMSE =", round(sqrt(mean((pred - test_sub$price)^2)), 2), "\n")
+
+```
+#Cluster
+```{r}
+# 1. Load clustering packages
+library(dplyr)
+library(cluster)
+library(factoextra)
+
+# 2. Select variables for clustering
+cluster_vars <- c("size_sqft", "Bathroom", "Total Units", "parking_lot", "# of Floors", "amenity_count")
+
+# 3. Prepare data and drop missing
+cluster_data <- df %>%
+  mutate(row_id = row_number()) %>%
+  select(row_id, all_of(cluster_vars)) %>%
+  na.omit()
+
+# 4. Standardize variables
+cluster_scaled <- scale(cluster_data[, -1])
+
+# 5. Apply K-means clustering (k = 3)
+set.seed(2025)
+km_res <- kmeans(cluster_scaled, centers = 3, nstart = 25)
+
+# 6. Assign cluster labels back to original data
+df$cluster <- NA
+df$cluster[cluster_data$row_id] <- km_res$cluster
+df$cluster <- factor(df$cluster)
+
+# 7. (Optional) Elbow method plot
+fviz_nbclust(cluster_scaled, kmeans, method = "wss")
+
+# 8. Visualize clusters (2D projection)
+fviz_cluster(km_res, data = cluster_scaled, main = "K-means Clustering Result")
+
+# 9. Price by cluster boxplot
+ggplot(df, aes(x = cluster, y = price)) +
+  geom_boxplot(fill = "skyblue") +
+  labs(title = "House Price Distribution by Cluster", x = "Cluster", y = "Price (RM)")
+
+# 10. Summarize mean values by cluster
+cluster_summary <- df %>%
+  filter(!is.na(cluster)) %>%
+  group_by(cluster) %>%
+  summarise(across(all_of(cluster_vars), mean, na.rm = TRUE))
+
+write.csv(cluster_summary, "cluster_summary.csv", row.names = FALSE)
+
+```
+
